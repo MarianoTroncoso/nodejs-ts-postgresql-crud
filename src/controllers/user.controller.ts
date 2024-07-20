@@ -16,13 +16,27 @@ const users: User[] = [
 
 export const getUsers = (
   _: Request,
-  res: Response<User[] | { error: string }>
+  res: Response<User[] | { error: unknown }>
 ) => {
   try {
     res.send(users);
   } catch (error: unknown) {
     res.status(404).send({
-      error: 'No users found',
+      error,
+    });
+  }
+};
+
+export const createUser = (req: Request, res: Response) => {
+  try {
+    const newUser: User = { ...req.body, id: users.length + 1 };
+
+    users.push(newUser);
+
+    res.send(newUser);
+  } catch (error: unknown) {
+    res.status(404).send({
+      error,
     });
   }
 };
