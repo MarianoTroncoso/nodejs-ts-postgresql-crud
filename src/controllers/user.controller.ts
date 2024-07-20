@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { User } from '../models/User';
 
-const users: User[] = [
+let users: User[] = [
   {
     id: 0,
     name: 'John Doe',
@@ -31,11 +31,63 @@ export const createUser = (req: Request, res: Response) => {
   try {
     const newUser: User = { ...req.body, id: users.length + 1 };
 
+    // TODO: Add repeated email user
+
     users.push(newUser);
 
     res.send(newUser);
   } catch (error: unknown) {
-    res.status(404).send({
+    res.status(400).send({
+      error,
+    });
+  }
+};
+
+export const updateUser = (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+
+    const foundUser = users.find((user) => user.id.toString() === userId);
+
+    if (!foundUser) {
+      return res.status(400).send({
+        error: 'User not found',
+      });
+    }
+
+    const updatedUser: User = { ...foundUser, ...req.body };
+
+    users = users.map((user) =>
+      user.id.toString() === userId ? updatedUser : user
+    );
+
+    res.send(updatedUser);
+  } catch (error: unknown) {
+    res.status(400).send({
+      error,
+    });
+  }
+};
+
+export const deleteUser = (req: Request, res: Response) => {
+  try {
+    const userId = req.params.id;
+
+    const foundUser = users.find((user) => user.id.toString() === userId);
+
+    if (!foundUser) {
+      return res.status(400).send({
+        error: 'User not found',
+      });
+    }
+
+    users = users.filter((user) => user.id.toString() !== userId);
+
+    res.send({
+      message: 'User deleted successfully',
+    });
+  } catch (error: unknown) {
+    res.status(400).send({
       error,
     });
   }
