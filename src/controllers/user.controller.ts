@@ -1,10 +1,17 @@
 import { Request, Response } from 'express';
 import { User } from '../models/User';
 import { createAccessToken } from '../libs/jwt';
-import { TOKEN_COOKIE_NAME } from './constants';
+import {
+  TOKEN_COOKIE_NAME,
+  NUMBER_OF_SALT_ROUNDS,
+  OK_STATUS_CODE,
+  INTERNAL_SERVER_ERROR_MESSAGE,
+  INTERNAL_SERVER_ERROR_STATUS_CODE,
+} from './constants';
 import bcrypt from 'bcrypt';
-
-const NUMBER_OF_SALT_ROUNDS: number = 10;
+import { QueryResult } from 'pg';
+import { pool } from '../database/database';
+import { GetUsersResponse } from './types';
 
 let users: User[] = [
   {
@@ -21,15 +28,19 @@ let users: User[] = [
   },
 ];
 
-export const getUsers = (
+export const getUsers = async (
   _: Request,
-  res: Response<User[] | { error: unknown }>
-) => {
+  res: GetUsersResponse
+): Promise<GetUsersResponse> => {
   try {
-    res.send(users);
+    const response: QueryResult<User> = await pool.query(
+      'SELECT * FROM products;'
+    );
+
+    return res.status(OK_STATUS_CODE).json(response.rows);
   } catch (error: unknown) {
-    res.status(404).send({
-      error,
+    return res.status(INTERNAL_SERVER_ERROR_STATUS_CODE).send({
+      error: INTERNAL_SERVER_ERROR_MESSAGE,
     });
   }
 };
