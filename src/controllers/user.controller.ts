@@ -1,16 +1,20 @@
 import { Request, Response } from 'express';
 import { User } from '../models/User';
+import { createAccessToken } from '../libs/jwt';
+import { TOKEN_COOKIE_NAME } from './constants';
 
 let users: User[] = [
   {
     id: 0,
     name: 'John Doe',
     email: 'jd@gmail.com',
+    password: '123',
   },
   {
     id: 1,
     name: 'Jane Doe',
     email: 'jand@gmail.com',
+    password: '456',
   },
 ];
 
@@ -27,15 +31,58 @@ export const getUsers = (
   }
 };
 
-export const createUser = (req: Request, res: Response) => {
-  try {
-    const newUser: User = { ...req.body, id: users.length + 1 };
+export const login = async (req: Request, res: Response) => {
+  const { email, password } = req.body;
 
-    // TODO: Add repeated email user
+  try {
+    const foundUser = users.find((user) => user.email === email);
+    if (!foundUser) {
+      return res.status(400).send({
+        error: 'User not found',
+      });
+    }
+
+    const isPasswordValid = foundUser.password === password;
+
+    if (!isPasswordValid) {
+      return res.status(400).send({
+        error: 'Invalid password',
+      });
+    }
+
+    const token = await createAccessToken({ id: foundUser.id });
+
+    res.cookie(TOKEN_COOKIE_NAME, token);
+
+    res.json(foundUser);
+  } catch (error) {
+    res.status(400).json({
+      error,
+    });
+  }
+};
+
+export const register = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    const emailAlreadyExists = users.some((user) => user.email === email);
+
+    if (emailAlreadyExists) {
+      return res.status(400).send({
+        error: 'Email already exists',
+      });
+    }
+
+    const newUser: User = { ...req.body, id: users.length + 1 };
 
     users.push(newUser);
 
-    res.send(newUser);
+    const token = await createAccessToken({ id: newUser.id });
+
+    res.cookie(TOKEN_COOKIE_NAME, token);
+
+    res.json(newUser);
   } catch (error: unknown) {
     res.status(400).send({
       error,
