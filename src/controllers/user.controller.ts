@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import { User } from '../models/User';
 import { createAccessToken } from '../libs/jwt';
 import { TOKEN_COOKIE_NAME } from './constants';
+import bcrypt from 'bcrypt';
+
+const NUMBER_OF_SALT_ROUNDS: number = 10;
 
 let users: User[] = [
   {
@@ -35,14 +38,15 @@ export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   try {
-    const foundUser = users.find((user) => user.email === email);
-    if (!foundUser) {
+    const userFound = users.find((user) => user.email === email);
+
+    if (!userFound) {
       return res.status(400).send({
         error: 'User not found',
       });
     }
 
-    const isPasswordValid = foundUser.password === password;
+    const isPasswordValid = await bcrypt.compare(password, userFound.password);
 
     if (!isPasswordValid) {
       return res.status(400).send({
@@ -50,11 +54,11 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    const token = await createAccessToken({ id: foundUser.id });
+    const token = await createAccessToken({ id: userFound.id });
 
     res.cookie(TOKEN_COOKIE_NAME, token);
 
-    res.json(foundUser);
+    res.json(userFound);
   } catch (error) {
     res.status(400).json({
       error,
@@ -64,7 +68,7 @@ export const login = async (req: Request, res: Response) => {
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
+    const { email, password } = req.body;
 
     const emailAlreadyExists = users.some((user) => user.email === email);
 
@@ -74,7 +78,13 @@ export const register = async (req: Request, res: Response) => {
       });
     }
 
-    const newUser: User = { ...req.body, id: users.length + 1 };
+    const passwordHash = await bcrypt.hash(password, NUMBER_OF_SALT_ROUNDS);
+
+    const newUser: User = {
+      ...req.body,
+      password: passwordHash,
+      id: users.length + 1,
+    };
 
     users.push(newUser);
 
@@ -94,15 +104,15 @@ export const updateUser = (req: Request, res: Response) => {
   try {
     const userId = req.params.id;
 
-    const foundUser = users.find((user) => user.id.toString() === userId);
+    const userFound = users.find((user) => user.id.toString() === userId);
 
-    if (!foundUser) {
+    if (!userFound) {
       return res.status(400).send({
         error: 'User not found',
       });
     }
 
-    const updatedUser: User = { ...foundUser, ...req.body };
+    const updatedUser: User = { ...userFound, ...req.body };
 
     users = users.map((user) =>
       user.id.toString() === userId ? updatedUser : user
@@ -120,9 +130,9 @@ export const deleteUser = (req: Request, res: Response) => {
   try {
     const userId = req.params.id;
 
-    const foundUser = users.find((user) => user.id.toString() === userId);
+    const userFound = users.find((user) => user.id.toString() === userId);
 
-    if (!foundUser) {
+    if (!userFound) {
       return res.status(400).send({
         error: 'User not found',
       });
