@@ -20,21 +20,6 @@ import {
   User,
 } from './types';
 
-let users: User[] = [
-  {
-    id: 0,
-    name: 'John Doe',
-    email: 'jd@gmail.com',
-    password: '123',
-  },
-  {
-    id: 1,
-    name: 'Jane Doe',
-    email: 'jand@gmail.com',
-    password: '456',
-  },
-];
-
 export const getUsers = async (
   _: Request,
   res: GetUsersResponse
@@ -59,7 +44,11 @@ export const login = async (
   const { email, password } = req.body;
 
   try {
-    const userFound = users.find((user) => user.email === email);
+    const usersResponse: QueryResult<User> = await pool.query(
+      'SELECT * FROM users;'
+    );
+
+    const userFound = usersResponse.rows.find((user) => user.email === email);
 
     if (!userFound) {
       return res.status(NOT_FOUND_STATUS_CODE).send({
@@ -123,56 +112,6 @@ export const registerUser = async (req: RegisterRequest, res: Response) => {
     });
   } catch (error: unknown) {
     res.status(BAD_REQUEST_STATUS_CODE).send({
-      error,
-    });
-  }
-};
-
-export const updateUser = (req: Request, res: Response) => {
-  try {
-    const userId = req.params.id;
-
-    const userFound = users.find((user) => user.id.toString() === userId);
-
-    if (!userFound) {
-      return res.status(400).send({
-        error: 'User not found',
-      });
-    }
-
-    const updatedUser: User = { ...userFound, ...req.body };
-
-    users = users.map((user) =>
-      user.id.toString() === userId ? updatedUser : user
-    );
-
-    res.send(updatedUser);
-  } catch (error: unknown) {
-    res.status(400).send({
-      error,
-    });
-  }
-};
-
-export const deleteUser = (req: Request, res: Response) => {
-  try {
-    const userId = req.params.id;
-
-    const userFound = users.find((user) => user.id.toString() === userId);
-
-    if (!userFound) {
-      return res.status(400).send({
-        error: 'User not found',
-      });
-    }
-
-    users = users.filter((user) => user.id.toString() !== userId);
-
-    res.send({
-      message: 'User deleted successfully',
-    });
-  } catch (error: unknown) {
-    res.status(400).send({
       error,
     });
   }
