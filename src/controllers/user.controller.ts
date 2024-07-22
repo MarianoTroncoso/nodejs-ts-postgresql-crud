@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { User } from '../models/User';
 import { createAccessToken } from '../libs/jwt';
 import {
   TOKEN_COOKIE_NAME,
@@ -7,11 +6,19 @@ import {
   OK_STATUS_CODE,
   INTERNAL_SERVER_ERROR_MESSAGE,
   INTERNAL_SERVER_ERROR_STATUS_CODE,
+  NOT_FOUND_STATUS_CODE,
+  BAD_REQUEST_STATUS_CODE,
 } from './constants';
 import bcrypt from 'bcrypt';
 import { QueryResult } from 'pg';
 import { pool } from '../database/database';
-import { GetUsersResponse } from './types';
+import {
+  GetUsersResponse,
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  User,
+} from './types';
 
 let users: User[] = [
   {
@@ -34,7 +41,7 @@ export const getUsers = async (
 ): Promise<GetUsersResponse> => {
   try {
     const response: QueryResult<User> = await pool.query(
-      'SELECT * FROM products;'
+      'SELECT * FROM users;'
     );
 
     return res.status(OK_STATUS_CODE).json(response.rows);
@@ -45,14 +52,17 @@ export const getUsers = async (
   }
 };
 
-export const login = async (req: Request, res: Response) => {
+export const login = async (
+  req: LoginRequest,
+  res: LoginResponse
+): Promise<LoginResponse> => {
   const { email, password } = req.body;
 
   try {
     const userFound = users.find((user) => user.email === email);
 
     if (!userFound) {
-      return res.status(400).send({
+      return res.status(NOT_FOUND_STATUS_CODE).send({
         error: 'User not found',
       });
     }
@@ -60,52 +70,59 @@ export const login = async (req: Request, res: Response) => {
     const isPasswordValid = await bcrypt.compare(password, userFound.password);
 
     if (!isPasswordValid) {
-      return res.status(400).send({
+      return res.status(BAD_REQUEST_STATUS_CODE).send({
         error: 'Invalid password',
       });
     }
 
-    const token = await createAccessToken({ id: userFound.id });
+    const token = await createAccessToken({ email });
 
     res.cookie(TOKEN_COOKIE_NAME, token);
 
-    res.json(userFound);
+    return res.status(OK_STATUS_CODE).json(userFound);
   } catch (error) {
-    res.status(400).json({
-      error,
+    return res.status(INTERNAL_SERVER_ERROR_STATUS_CODE).json({
+      error: INTERNAL_SERVER_ERROR_MESSAGE,
     });
   }
 };
 
-export const register = async (req: Request, res: Response) => {
+export const registerUser = async (req: RegisterRequest, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { name, email, password } = req.body;
 
-    const emailAlreadyExists = users.some((user) => user.email === email);
+    const checkDuplicatedEmailResponse: QueryResult = await pool.query(
+      'SELECT * FROM users WHERE email = $1;',
+      [email]
+    );
+
+    const emailAlreadyExists = checkDuplicatedEmailResponse.rows.length >= 1;
 
     if (emailAlreadyExists) {
-      return res.status(400).send({
+      return res.status(BAD_REQUEST_STATUS_CODE).send({
         error: 'Email already exists',
       });
     }
 
     const passwordHash = await bcrypt.hash(password, NUMBER_OF_SALT_ROUNDS);
 
-    const newUser: User = {
-      ...req.body,
-      password: passwordHash,
-      id: users.length + 1,
-    };
+    await pool.query(
+      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3);',
+      [name, email, passwordHash]
+    );
 
-    users.push(newUser);
-
-    const token = await createAccessToken({ id: newUser.id });
+    const token = await createAccessToken({ email });
 
     res.cookie(TOKEN_COOKIE_NAME, token);
 
-    res.json(newUser);
+    return res.status(OK_STATUS_CODE).json({
+      user: {
+        name,
+        email,
+      },
+    });
   } catch (error: unknown) {
-    res.status(400).send({
+    res.status(BAD_REQUEST_STATUS_CODE).send({
       error,
     });
   }
